@@ -147,11 +147,11 @@ class Collidoscope:
             font.set_variations(self.location)
         self.hbfont = font
 
-    def shape_a_text(self, text):
+    def shape_a_text(self, text, features):
         buf = hb.Buffer()
         buf.add_str(text)
         buf.guess_segment_properties()
-        hb.shape(self.hbfont, buf)
+        hb.shape(self.hbfont, buf, features)
         self.direction = buf.direction
         return buf
 
@@ -161,7 +161,7 @@ class Collidoscope:
             return
         # Find the GPOS CursiveAttachment lookups
         cursives = filter(
-            lambda x: x.LookupType == 3, self.font["GPOS"].table.LookupList.Lookup
+            lambda x: x.LookupType == 3, self.ttfont["GPOS"].table.LookupList.Lookup
         )
         anchors = {}
 
@@ -253,7 +253,7 @@ class Collidoscope:
                     rv.append(Collision(glyph1=g1["name"], glyph2=g2["name"], path1=p1, path2=p2, point=pt))
         return rv
 
-    def get_glyphs(self, text, buf=None):
+    def get_glyphs(self, text, buf=None, features=None):
         """Returns an list of dictionaries representing a shaped string.
 
         Args:
@@ -263,7 +263,7 @@ class Collidoscope:
         This is the first step in collision detection; the dictionaries
         returned can be fed to ``draw_overlaps`` and ``has_collisions``."""
         if not buf:
-            buf = self.shape_a_text(text)
+            buf = self.shape_a_text(text, features)
         cursor = 0
         glyphs = []
         ix = 0
@@ -292,7 +292,7 @@ class Collidoscope:
         bbox = bboxes[0]
         for newbox in bboxes[1:]:
             bbox = bbox.union(newbox)
-        col = ["green", "red", "purple", "blue", "yellow"]
+        col = ["#008000", "#c00000", "#800080", "#0000c0", "#ff9f00"]
         for ix, g in enumerate(glyphs):
             for p in g["paths"]:
                 svgpaths.append(

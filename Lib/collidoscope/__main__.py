@@ -2,6 +2,7 @@ from collidoscope import Collidoscope
 from argparse import ArgumentParser, FileType
 import tqdm
 import re
+import sys
 
 
 def designspace_location(loc):
@@ -34,6 +35,12 @@ parser.add_argument('--scale-factor', dest="scale_factor",
                     help="Scale glyphs before checking", metavar="SCALE", default=1.0)
 parser.add_argument('--location', dest="location",
                     help="Designspace location", metavar="LOCATION", type=designspace_location)
+parser.add_argument('--jalt', action='store_true', dest="feat_jalt",
+                    help="(OT Feature) enable justification alternatives")
+parser.add_argument('--swsh', action='store_true', dest="feat_swsh",
+                    help="(OT Feature) enable swash")
+parser.add_argument('--no-kern', action='store_true', dest="feat_kern_off",
+                    help="(OT feature) disable kerning")
 
 parser.add_argument('-r', dest="range",
                     help="Comma-separated list of Unicode ranges", metavar="RANGE")
@@ -41,10 +48,10 @@ parser.add_argument('-r', dest="range",
 parser.add_argument('-t', dest="text",
                     help="Text to check", metavar="TEXT")
 
-parser.add_argument('-f', dest="file", type=FileType('r'),
-                    help="File of lines to check", metavar="FILE")
+parser.add_argument('-f', dest="file", type=FileType('r', encoding="UTF-8"),
+                    help="File of lines to check (UTF-8)", metavar="FILE")
 
-parser.add_argument('-o', dest="output", type=FileType('w'), default="report.html",
+parser.add_argument('-o', dest="output", type=FileType('w', encoding="UTF-8"), default="report.html",
                     help="Output report file", metavar="FILE")
 
 
@@ -76,32 +83,49 @@ report.write('''
 <meta charset="UTF-8"> 
     <title></title>
 <style>
-        .cards {
-display: grid;
-grid-template-columns: repeat(auto-fill, 250px);
-grid-auto-rows: auto;
-grid-gap: 1rem;
-font-family:'%s'; font-size:50pt;
+body{
+ font-family:'Calibri'
 }
-        svg { transform: scaleY(-1); }
- 
+.cards {
+ display: grid;
+ grid-template-columns: repeat(auto-fill, 300px);
+ grid-auto-rows: auto;
+ grid-gap: 1rem;
+ font-family:'%s'; font-size:24pt;
+ }
+svg { transform: scaleY(-1); }
 .card {
-border: 2px solid #e7e7e7;
-border-radius: 4px;
-padding: .5rem;
-}</style>
+ border: 2px solid #e7e7e7;
+ border-radius: 4px;
+ padding: .5rem;
+}
+.count {
+ font-family:'Calibri';
+ color:red;
+ font-size:10pt;
+}
+.line {
+ font-family:'Calibri';
+ color:orange;
+ font-size:10pt;
+}
+</style>
 </head>
 
 <body>
-<h2>Collision Report</h2>
-<div class="cards">
-''' %  c.ttfont["name"].getDebugName(1))
+<h1>Collision Report</h1>
+<h2>%s</br>%s</h2>
+''' %  (c.ttfont["name"].getDebugName(1), c.ttfont["name"].getDebugName(6), c.ttfont["name"].getDebugName(5)))
+
+report.write('''<pre>%s</pre></br>''' % (str(sys.argv[1:])))
+report.write('''<div class="cards">''')
 
 codepoints = c.ttfont.getBestCmap().keys()
 codepointfilter = []
 
 
 counter = 0
+counterhit = 0
 
 def gen_texts(codepoints):
     print("Generating text...")
@@ -122,7 +146,7 @@ def gen_texts(codepoints):
 if args.text:
     texts = [args.text]
 elif args.file:
-    texts = [ x.rtrim() for x in args.file.readlines()]
+    texts = [ x.rstrip() for x in args.file.readlines()]
 elif args.range:
     for r in args.range.split(","):
         if "-" in r:
@@ -138,16 +162,26 @@ else:
 
 c.prep_shaper()
 
+features = {'kern':True}
+if args.feat_jalt:
+    features['jalt'] = True
+if args.feat_kern_off:
+    features['kern'] = False
+if args.feat_swsh:
+    features['swsh'] = True
+
+
 pbar = tqdm.tqdm(texts)
 for text in pbar:
-    pbar.set_description(text)
-    glyphs = c.get_glyphs(text)
+    counter = counter + 1
+    pbar.set_description(text.ljust(26))
+    glyphs = c.get_glyphs(text, None, features)
     cols = c.has_collisions(glyphs)
     if cols:
-        cols = c.draw_overlaps(glyphs, cols, "preserveAspectRatio=\"xMidYMax\" width=300 height=200")
-        report.write("<div class=\"card\"> %s %s</div> \n" % (text, cols))
+        counterhit = counterhit + 1
+        cols = c.draw_overlaps(glyphs, cols, "preserveAspectRatio=\"xMidYMax\" width=250 height=150")
+        report.write("<div class=\"card\"><span class=\"count\">%d</span><span class=\"line\"> @%d</span> %s %s</div> \n" % (counterhit, counter, text, cols))
         report.flush()
-    counter = counter + 1
 
 report.write('''
 </div>
@@ -156,6 +190,7 @@ report.write('''
 ''')
 
 print("Output written on %s" % args.output.name)
+print("Number of hits = %d" % counterhit)
 # hbfont = prep_shaper(fontfilename)
 # glyphs = get_glyphs(hbfont, font, "ۍ", anchors)
 # print(has_collisions(glyphs, 1, {
