@@ -187,12 +187,7 @@ class Collidoscope:
         self.anchors = anchors
 
     def scale_path(self, p):
-        centroid = p.bounding_box().center()
-        out = TranslateScale.translate(Vec2(centroid.x * -1, centroid.y * -1))
-        scale = TranslateScale.scale(self.scale_factor)
-        in_ = TranslateScale.translate(Vec2(centroid.x, centroid.y))
-        transform = out * scale * in_
-        return transform * p
+        return p.scale_path(self.scale_factor)
 
     def get_cached_glyph(self, name):
         if name in self.glyphcache:
